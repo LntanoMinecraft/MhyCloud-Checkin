@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">云签助手</string>
+    <string name="nav_home">首页</string>
+    <string name="nav_logs">日志</string>
+    <string name="nav_settings">设置</string>
+    <string name="channel_summary_name">每日签到结果汇报</string>
+    <string name="channel_summary_desc">每日云游戏定时签到完成后的汇总结果通知</string>
+    <string name="channel_alert_name">异常与上限高优提醒</string>
+    <string name="channel_alert_desc">凭证彻底失效或免费时长达上限自动暂停时的重要提醒</string>
+    <string name="channel_worker_name">后台签到执行服务</string>
+    <string name="channel_worker_desc">保障后台加急签到任务执行的短时静默通知</string>
+</resources>

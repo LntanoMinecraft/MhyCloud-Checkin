@@ -1,0 +1,6 @@
+{
+  "name": "云签助手",
+  "description": "云游戏自动签到助手（支持《云·原神》与《云·绝区零》），采用 Material Design 3 Expressive 设计，支持 Root 直读与基础模式凭证捕获、Android Keystore 加密存储、时长上限自动暂停与链式定时调度。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Single evenOdd path so Android 13+ Monet dynamic tinting preserves the cutout checkmark -->
+    <path
+        android:fillColor="#000000"
+        android:fillType="evenOdd"
+        android:pathData="M37.5,69.5 H70.5 C76.8,69.5 81.5,64.8 81.5,58.6 C81.5,53.0 77.3,48.3 71.8,47.7 C70.2,39.9 63.3,34.5 55.2,34.5 C46.8,34.5 39.8,40.4 38.5,48.5 C32.3,49.4 27.5,54.6 27.5,61.0 C27.5,65.7 31.8,69.5 37.5,69.5 Z M50.2,61.8 L43.4,55.0 L46.4,52.0 L50.2,55.8 L62.0,44.0 L65.0,47.0 Z" />
+</vector>
