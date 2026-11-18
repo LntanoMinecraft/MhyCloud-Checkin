@@ -16,8 +16,16 @@ android {
     applicationId = "com.aistudio.cloudcheckin.k9m2xp"
     minSdk = 26
     targetSdk = 36
-    versionCode = 5
-    versionName = "5.0"
+
+    val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+    val ciRefName = System.getenv("GITHUB_REF_NAME")
+
+    versionCode = if (ciRunNumber != null) 5 + ciRunNumber else 6
+    versionName = when {
+      ciRefName != null && ciRefName.startsWith("v") -> ciRefName.removePrefix("v")
+      ciRunNumber != null -> "5.0-dev.$ciRunNumber"
+      else -> "5.0"
+    }
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
