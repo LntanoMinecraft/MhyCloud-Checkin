@@ -67,80 +67,79 @@ fun FloatingNavigationChrome(
       .fillMaxWidth()
       .navigationBarsPadding()
       .padding(horizontal = 16.dp, vertical = 16.dp),
-    contentAlignment = Alignment.BottomCenter,
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    // MD3 Expressive Floating Navigation Capsule — always fixed at exact bottom center
+    Surface(
+      shape = CircleShape,
+      color = MaterialTheme.colorScheme.surfaceContainerHigh,
+      tonalElevation = 3.dp,
+      shadowElevation = 6.dp,
+      modifier = Modifier
+        .align(Alignment.BottomCenter)
+        .testTag("floating_nav_capsule"),
     ) {
-      // MD3 Expressive Floating Navigation Capsule
-      Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
-        modifier = Modifier.testTag("floating_nav_capsule"),
+      Row(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
       ) {
-        Row(
-          modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          AppTab.entries.forEach { tab ->
-            val selected = tab == selectedTab
-            FloatingNavPillItem(
-              tab = tab,
-              selected = selected,
-              onClick = { onSelectTab(tab) },
-            )
-          }
+        AppTab.entries.forEach { tab ->
+          val selected = tab == selectedTab
+          FloatingNavPillItem(
+            tab = tab,
+            selected = selected,
+            onClick = { onSelectTab(tab) },
+          )
         }
       }
+    }
 
-      // Expressive paired FAB for "一键全部签到"
-      AnimatedVisibility(
-        visible = showBatchFab,
-        enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
-        exit = scaleOut() + fadeOut(),
+    // Expressive FAB for "一键签到" — raised above the navigation capsule on the bottom-right
+    AnimatedVisibility(
+      visible = showBatchFab,
+      enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
+      exit = scaleOut() + fadeOut(),
+      modifier = Modifier
+        .align(Alignment.BottomEnd)
+        .padding(bottom = 74.dp),
+    ) {
+      FloatingActionButton(
+        onClick = { if (!isBatchRunning) onBatchCheckinClick() },
+        shape = RoundedCornerShape(18.dp),
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        elevation = FloatingActionButtonDefaults.elevation(
+          defaultElevation = 6.dp,
+          pressedElevation = 8.dp,
+        ),
+        modifier = Modifier
+          .height(52.dp)
+          .testTag("fab_batch_checkin"),
       ) {
-        FloatingActionButton(
-          onClick = { if (!isBatchRunning) onBatchCheckinClick() },
-          shape = RoundedCornerShape(22.dp),
-          containerColor = MaterialTheme.colorScheme.primaryContainer,
-          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          elevation = FloatingActionButtonDefaults.elevation(
-            defaultElevation = 6.dp,
-            pressedElevation = 8.dp,
-          ),
-          modifier = Modifier
-            .height(58.dp)
-            .testTag("fab_batch_checkin"),
+        Row(
+          modifier = Modifier.padding(horizontal = 16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            if (isBatchRunning) {
-              CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                strokeWidth = 2.5.dp,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-              )
-              Text(
-                text = "签到中",
-                style = MaterialTheme.typography.labelLarge,
-              )
-            } else {
-              Icon(
-                imageVector = Icons.Filled.Bolt,
-                contentDescription = "一键全部签到",
-              )
-              Text(
-                text = "一键签到",
-                style = MaterialTheme.typography.labelLarge,
-              )
-            }
+          if (isBatchRunning) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(20.dp),
+              strokeWidth = 2.5.dp,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+              text = "签到中",
+              style = MaterialTheme.typography.labelLarge,
+            )
+          } else {
+            Icon(
+              imageVector = Icons.Filled.Bolt,
+              contentDescription = "一键全部签到",
+            )
+            Text(
+              text = "一键签到",
+              style = MaterialTheme.typography.labelLarge,
+            )
           }
         }
       }

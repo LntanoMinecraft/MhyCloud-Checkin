@@ -101,7 +101,7 @@ fun HomeScreen(
       modifier = Modifier
         .fillMaxSize()
         .widthIn(max = 640.dp),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 164.dp),
       verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       item(key = "header_title") {

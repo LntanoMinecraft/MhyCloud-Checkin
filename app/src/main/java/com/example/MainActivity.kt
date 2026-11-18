@@ -117,7 +117,7 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
         hostState = snackbarHostState,
         modifier = Modifier
           .navigationBarsPadding()
-          .padding(bottom = 84.dp),
+          .padding(bottom = if (selectedTab == AppTab.HOME) 152.dp else 88.dp),
       )
     },
   ) { _ ->
