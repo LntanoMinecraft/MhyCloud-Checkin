@@ -49,7 +49,7 @@
 
 ## 快速上手
 
-1. **下载与安装**：前往本仓库 [Releases](https://www.google.com/search?q=https://github.com/LntanoMinecraft/MhyCloud-Checkin/releases) 页面下载最新安装包并安装（最低支持 Android 8.0）。
+1. **下载与安装**：前往本仓库 [Releases](https://github.com/LntanoMinecraft/MhyCloud-Checkin/releases) 页面下载最新安装包并安装（最低支持 Android 8.0）。
 2. **完成权限自检**：首次打开进入 **设置 → 系统权限自检**，授予**通知权限**、将电池优化设为**无限制**（基础模式建议同时开启**精确闹钟权限**）。
 3. **导入游戏账号**：点击首页右上角 **添加**，按提示选择 `Root 模式` 一键扫描，或按 `基础模式` 引导完成登录/粘贴导入。
 4. **开启每日自动签到**：设定你习惯的每日基准时间与随机抖动范围即可；当免费时长满 600 分钟时会自动暂停，消耗时长后可随时在首页卡片一键恢复。
@@ -67,7 +67,7 @@
 ## 致谢与开源协议
 
 * **开发致谢**：本项目由 **Google AI Studio** 中的 **Gemini 4 Hydrogen** 编写实现。
-* **开源协议**：本项目基于 [MIT License](https://www.google.com/search?q=LICENSE) 开源。
+* **开源协议**：本项目基于 [MIT License](https://github.com/LntanoMinecraft/MhyCloud-Checkin/blob/main/LICENSE) 开源。
 
 ---
 
