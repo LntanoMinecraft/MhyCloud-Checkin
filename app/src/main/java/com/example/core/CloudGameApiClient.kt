@@ -7,11 +7,11 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -104,8 +104,8 @@ class CloudGameApiClient {
             message = "响应 JSON 解析失败",
           )
 
-          val retcode = rootObj["retcode"]?.jsonPrimitive?.intOrNull ?: -1
-          val message = rootObj["message"]?.jsonPrimitive?.content.orEmpty()
+          val retcode = rootObj["retcode"].asIntOrNull() ?: -1
+          val message = (rootObj["message"] as? JsonPrimitive)?.content.orEmpty()
 
           if (retcode == 0) {
             val dataObj = rootObj["data"] as? JsonObject
@@ -155,6 +155,11 @@ class CloudGameApiClient {
     val sendFreeMinutes: Int,
   )
 
+  private fun JsonElement?.asIntOrNull(): Int? {
+    val primitive = this as? JsonPrimitive ?: return null
+    return primitive.intOrNull ?: primitive.content.trim().toIntOrNull()
+  }
+
   private fun extractTimes(dataObj: JsonObject?): ParsedWalletTimes {
     if (dataObj == null) return ParsedWalletTimes(0, 0, 0)
 
@@ -163,19 +168,21 @@ class CloudGameApiClient {
 
     when (val freeElem = dataObj["free_time"]) {
       is JsonObject -> {
-        freeMin = freeElem["free_time"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-        sendFreeMin = freeElem["send_free_time"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        freeMin = freeElem["free_time"].asIntOrNull() ?: 0
+        sendFreeMin = freeElem["send_freetime"].asIntOrNull()
+          ?: freeElem["send_free_time"].asIntOrNull()
+          ?: 0
       }
       is JsonPrimitive -> {
-        freeMin = freeElem.content.toIntOrNull() ?: 0
+        freeMin = freeElem.asIntOrNull() ?: 0
       }
       else -> {}
     }
 
-    val totalFromField = dataObj["total_time"]?.jsonPrimitive?.content?.toIntOrNull()
-    val coinTime = dataObj["coin_time"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+    val totalFromField = dataObj["total_time"].asIntOrNull()
+    val coinTime = dataObj["coin_time"].asIntOrNull() ?: 0
     val playCard = (dataObj["play_card"] as? JsonObject)
-      ?.get("short_time")?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+      ?.get("short_time").asIntOrNull() ?: 0
 
     val totalMin = totalFromField ?: (freeMin + coinTime + playCard)
     return ParsedWalletTimes(

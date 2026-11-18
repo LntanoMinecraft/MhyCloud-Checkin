@@ -18,7 +18,7 @@ enum class GameType(
     packageName = "com.miHoYo.cloudgames.ys",
     gameKey = "hk4e_cn",
     webUrl = "https://ys.mihoyo.com/cloud/#/",
-    walletEndpoint = "https://api-cloudgame.mihoyo.com/hk4e_cg_cn/wallet/wallet/get",
+    walletEndpoint = "https://api-cloudgame.mihoyo.com/hk4e_cg_cn/wallet/wallet/get?cost_method=0&get_type=0",
     notificationsEndpoint = "https://api-cloudgame.mihoyo.com/hk4e_cg_cn/gamer/api/listNotifications",
   ),
   ZZZ(
@@ -27,7 +27,7 @@ enum class GameType(
     packageName = "com.miHoYo.cloudgames.Nap",
     gameKey = "nap_cn",
     webUrl = "https://cg.mihoyo.com/zzz/",
-    walletEndpoint = "https://api-cloudgame.mihoyo.com/nap_cn/wallet/wallet/get",
+    walletEndpoint = "https://cg-nap-api.mihoyo.com/nap_cn/cg/wallet/wallet/get?cost_method=0&get_type=0",
     notificationsEndpoint = "https://api-cloudgame.mihoyo.com/nap_cn/gamer/api/listNotifications",
   ),
 }

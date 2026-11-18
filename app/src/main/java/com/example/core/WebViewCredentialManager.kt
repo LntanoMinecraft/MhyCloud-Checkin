@@ -96,15 +96,25 @@ object WebViewCredentialManager {
         if (request == null) return null
         val url = request.url?.toString().orEmpty()
         if (request.method.equals("GET", ignoreCase = true) &&
-          url.contains("api-cloudgame.mihoyo.com", ignoreCase = true)
+          url.contains("wallet/wallet/get", ignoreCase = true)
         ) {
           val headers = request.requestHeaders ?: emptyMap()
           val comboToken = headers.entries
             .firstOrNull { it.key.equals("x-rpc-combo_token", ignoreCase = true) }
             ?.value
+            ?.trim()
             .orEmpty()
 
-          if (comboToken.isNotBlank() && capturedAlready.compareAndSet(false, true)) {
+          val openIdMatch = Regex("""(?:^|;)\s*oi=(\d+)\s*(?:;|$)""")
+            .find(comboToken)?.groupValues?.getOrNull(1).orEmpty()
+          val isOiValid = openIdMatch.isNotBlank() && openIdMatch.any { it != '0' }
+          val ctMatch = Regex("""(?:^|;)\s*ct=([^;\s]+)\s*(?:;|$)""")
+            .find(comboToken)?.groupValues?.getOrNull(1).orEmpty()
+          val isCtValid = ctMatch.isNotBlank() &&
+            ctMatch.lowercase() !in setOf("null", "undefined", "none", "empty", "placeholder", "ct") &&
+            !ctMatch.contains("****")
+
+          if (isOiValid && isCtValid && capturedAlready.compareAndSet(false, true)) {
             val boundHeaders = linkedMapOf<String, String>()
             headers.forEach { (k, v) ->
               if ((k.startsWith("x-rpc-", ignoreCase = true) ||
@@ -120,12 +130,11 @@ object WebViewCredentialManager {
               boundHeaders["User-Agent"] = settings.userAgentString
             }
 
-            val openIdMatch = Regex("""oi=([^;]+)""").find(comboToken)?.groupValues?.getOrNull(1).orEmpty()
             val credentials = CapturedWebCredentials(
               comboToken = comboToken,
               maskedComboToken = SecuritySanitizer.maskComboTokenPayload(comboToken),
               deviceHeadersJson = json.encodeToString(boundHeaders),
-              maskedUid = if (openIdMatch.isNotBlank()) SecuritySanitizer.maskTokenValue(openIdMatch) else "",
+              maskedUid = SecuritySanitizer.maskTokenValue(openIdMatch),
             )
             webView.post {
               onCredentialsCaptured(credentials)

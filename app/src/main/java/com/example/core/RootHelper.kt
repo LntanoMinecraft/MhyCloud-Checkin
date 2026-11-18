@@ -47,9 +47,11 @@ object RootHelper {
   private const val FILE_LOGIN = "mihoyo_login.xml"
   private const val FILE_SDK = "mihoyo_sdk_preference.xml"
   private const val FILE_DEVICE = "pre_device.xml.xml"
+  private const val DB_KIBANA_CLOUD_GAME = "databases/kibana_db_cloud_game"
 
   private val packageAllowlist = setOf(PKG_GENSHIN, PKG_ZZZ)
   private val fileAllowlist = setOf(FILE_LOGIN, FILE_SDK, FILE_DEVICE)
+  private val dbPathAllowlist = setOf(DB_KIBANA_CLOUD_GAME)
 
   private val json = Json {
     ignoreUnknownKeys = true
@@ -164,21 +166,41 @@ object RootHelper {
     val appVersion = getInstalledAppVersion(context, pkg)
     val resolvedAppId = appId.ifBlank { if (gameType == GameType.GENSHIN) "4" else "12" }
     val resolvedChannelId = channelId.ifBlank { "1" }
+    val sessionId = readLatestSessionId(pkg)
 
-    val comboTokenHeader = "ai=$resolvedAppId;ci=$resolvedChannelId;oi=$openId;ct=$comboToken;si=$gameKey;bi=$gameKey"
+    val comboTokenHeader = "ai=$resolvedAppId;ci=$resolvedChannelId;oi=$openId;ct=$comboToken;si=$sessionId;bi=$gameKey"
 
-    // Source-bound Android native client headers (never mixed with WebView UA/client_type)
+    // Source-bound Android native client headers (aligned with real Android client traffic)
     val headersMap = linkedMapOf(
-      "x-rpc-client_type" to "4",
+      "x-rpc-client_type" to "2",
+      "x-rpc-vendor_id" to "2",
+      "x-rpc-language" to "zh-cn",
       "x-rpc-app_version" to appVersion,
       "x-rpc-device_id" to deviceId,
       "x-rpc-device_name" to "${Build.MANUFACTURER} ${Build.MODEL}",
       "x-rpc-device_model" to Build.MODEL,
       "x-rpc-sys_version" to Build.VERSION.RELEASE,
-      "x-rpc-channel" to "mihoyo",
-      "x-rpc-cg_game_biz" to gameKey,
       "User-Agent" to "okhttp/4.10.0",
-    )
+    ).apply {
+      when (gameType) {
+        GameType.GENSHIN -> {
+          put("x-rpc-app_id", "1953439974")
+          put("x-rpc-channel", "miyoushe")
+          put("x-rpc-cps", "miyoushe")
+          put("x-rpc-op_biz", "clgm_cn")
+          put("x-rpc-cg_game_biz", "hk4e_cn")
+          put("x-rpc-cg_game_id", "9000055")
+        }
+        GameType.ZZZ -> {
+          put("x-rpc-app_id", "1953458679")
+          put("x-rpc-channel", "mys_cloud")
+          put("x-rpc-cps", "mys_cloud")
+          put("x-rpc-op_biz", "clgm_nap-cn")
+          put("x-rpc-cg_game_biz", "nap_cn")
+          put("x-rpc-cg_game_id", "9000357")
+        }
+      }
+    }
 
     RootScanAccountResult(
       gameType = gameType,
@@ -208,6 +230,40 @@ object RootHelper {
       return fallbackRes.out.joinToString("\n")
     }
     return null
+  }
+
+  private fun readLatestSessionId(pkg: String): String {
+    if (pkg !in packageAllowlist || DB_KIBANA_CLOUD_GAME !in dbPathAllowlist) return ""
+    val primaryUserDir = "/data/user/0/$pkg"
+    val primaryDbPath = "$primaryUserDir/$DB_KIBANA_CLOUD_GAME"
+    val fallbackDbPath = "/data/data/$pkg/$DB_KIBANA_CLOUD_GAME"
+
+    val hasPrimaryDir = Shell.cmd("[ -d '$primaryUserDir' ]").exec().isSuccess
+    val targetDbPath = if (hasPrimaryDir) primaryDbPath else fallbackDbPath
+
+    val grepRes = Shell.cmd(
+      "grep -aoE 'si=[0-9a-fA-F]{32,128}' '$targetDbPath' 2>/dev/null | tail -n 1",
+    ).exec()
+    val rawLine = if (grepRes.isSuccess && grepRes.out.isNotEmpty()) {
+      grepRes.out.lastOrNull().orEmpty()
+    } else if (hasPrimaryDir) {
+      val fallbackRes = Shell.cmd(
+        "grep -aoE 'si=[0-9a-fA-F]{32,128}' '$fallbackDbPath' 2>/dev/null | tail -n 1",
+      ).exec()
+      if (fallbackRes.isSuccess && fallbackRes.out.isNotEmpty()) {
+        fallbackRes.out.lastOrNull().orEmpty()
+      } else {
+        ""
+      }
+    } else {
+      ""
+    }
+
+    return Regex("""si=([0-9a-fA-F]{32,128})""")
+      .find(rawLine)
+      ?.groupValues
+      ?.getOrNull(1)
+      .orEmpty()
   }
 
   private suspend fun parseSharedPrefsXmlWithRetry(
