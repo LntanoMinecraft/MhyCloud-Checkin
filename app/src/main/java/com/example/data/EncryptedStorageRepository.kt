@@ -69,7 +69,12 @@ class EncryptedStorageRepository(context: Context) {
       _config.value = if (cfgStr.isNullOrBlank()) {
         AppGlobalConfig()
       } else {
-        runCatching { json.decodeFromString<AppGlobalConfig>(cfgStr) }.getOrDefault(AppGlobalConfig())
+        val decoded = runCatching { json.decodeFromString<AppGlobalConfig>(cfgStr) }.getOrDefault(AppGlobalConfig())
+        if (!cfgStr.contains("\"useDynamicColor\"") && cfgStr.contains("\"dynamicColorEnabled\":false")) {
+          decoded.copy(useDynamicColor = false)
+        } else {
+          decoded
+        }
       }
 
       _logs.value = decodeList<CheckinLogEntry>(prefs.getString(KEY_LOGS, null))

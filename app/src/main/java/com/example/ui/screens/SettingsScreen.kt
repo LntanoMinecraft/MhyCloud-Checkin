@@ -8,6 +8,12 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,14 +29,16 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
@@ -66,9 +74,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.core.RootProbeResult
@@ -76,6 +92,8 @@ import com.example.data.AppGlobalConfig
 import com.example.data.PermissionMode
 import com.example.data.ThemePreference
 import com.example.ui.theme.LocalStatusColors
+import com.example.ui.theme.ThemeSeedPreset
+import com.example.ui.theme.ThemeSeedPresets
 import com.example.viewmodel.SystemPermissionStatus
 import kotlin.math.roundToInt
 
@@ -94,6 +112,7 @@ fun SettingsScreen(
   onToggleAutoBackupRenewal: (Boolean) -> Unit,
   onToggleNotifications: (Boolean) -> Unit,
   onToggleDynamicColor: (Boolean) -> Unit,
+  onSelectThemeSeedColor: (String) -> Unit,
   onUpdateThemePreference: (ThemePreference) -> Unit,
   onOpenImportHelp: () -> Unit,
 ) {
@@ -159,12 +178,14 @@ fun SettingsScreen(
         )
       }
 
-      // 3. Appearance Card (Dynamic Color & Light/Dark Theme)
+      // 3. Appearance Card (Dynamic Color, Custom Seed Palette & Light/Dark Theme)
       item(key = "appearance_card") {
         AppearanceCard(
-          dynamicColorEnabled = config.dynamicColorEnabled,
+          useDynamicColor = config.useDynamicColor,
+          themeSeedColorHex = config.themeSeedColorHex,
           themePreference = config.themePreference,
           onToggleDynamicColor = onToggleDynamicColor,
+          onSelectThemeSeedColor = onSelectThemeSeedColor,
           onSelectThemePreference = onUpdateThemePreference,
         )
       }
@@ -489,11 +510,19 @@ private fun ScheduleAndCapCard(
 
 @Composable
 private fun AppearanceCard(
-  dynamicColorEnabled: Boolean,
+  useDynamicColor: Boolean,
+  themeSeedColorHex: String?,
   themePreference: ThemePreference,
   onToggleDynamicColor: (Boolean) -> Unit,
+  onSelectThemeSeedColor: (String) -> Unit,
   onSelectThemePreference: (ThemePreference) -> Unit,
 ) {
+  val supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+  val isDynamicActive = useDynamicColor && supportsDynamicColor
+  val activePreset = ThemeSeedPresets.firstOrNull {
+    it.hex.equals(themeSeedColorHex, ignoreCase = true)
+  }
+
   Card(
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -524,12 +553,12 @@ private fun AppearanceCard(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column(modifier = Modifier.weight(1f)) {
-          Text("系统动态取色 (Monet)", style = MaterialTheme.typography.bodyLarge)
+          Text("跟随系统壁纸动态取色", style = MaterialTheme.typography.bodyLarge)
           Text(
-            text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-              "Android 12+ 自动提取壁纸莫奈色彩"
-            } else {
-              "当前系统低于 Android 12，将使用靛紫主题色板"
+            text = when {
+              isDynamicActive -> "Android 12+ 自动提取壁纸莫奈色彩"
+              supportsDynamicColor -> "已启用自定义调色盘配色，可随时切回系统动态取色"
+              else -> "当前系统低于 Android 12，将使用自定义调色盘配色"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -537,11 +566,60 @@ private fun AppearanceCard(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Switch(
-          checked = dynamicColorEnabled,
+          checked = useDynamicColor,
           onCheckedChange = onToggleDynamicColor,
           modifier = Modifier.testTag("switch_dynamic_color"),
         )
       }
+
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text("主题调色盘", style = MaterialTheme.typography.bodyLarge)
+          Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+          ) {
+            Text(
+              text = when {
+                isDynamicActive -> "跟随系统壁纸"
+                activePreset != null -> activePreset.name
+                else -> "默认靛紫"
+              },
+              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+              color = MaterialTheme.colorScheme.onSecondaryContainer,
+              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+          }
+        }
+
+        LazyRow(
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("theme_seed_palette_row"),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          items(
+            items = ThemeSeedPresets,
+            key = { it.hex },
+          ) { preset ->
+            val selected = !isDynamicActive && preset.hex.equals(themeSeedColorHex, ignoreCase = true)
+            ThemeSeedSwatch(
+              preset = preset,
+              selected = selected,
+              onClick = { onSelectThemeSeedColor(preset.hex) },
+            )
+          }
+        }
+      }
+
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
       Text("深浅色显示模式", style = MaterialTheme.typography.bodyLarge)
       SingleChoiceSegmentedButtonRow(
@@ -557,6 +635,64 @@ private fun AppearanceCard(
             label = { Text(pref.label) },
           )
         }
+      }
+    }
+  }
+}
+
+@Composable
+private fun ThemeSeedSwatch(
+  preset: ThemeSeedPreset,
+  selected: Boolean,
+  onClick: () -> Unit,
+) {
+  val scale by animateFloatAsState(
+    targetValue = if (selected) 1.1f else 1.0f,
+    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+    label = "seed_swatch_scale",
+  )
+  val isBright = ColorUtils.calculateLuminance(preset.color.toArgb()) > 0.45
+  val checkTint = if (isBright) Color.Black else Color.White
+
+  Box(
+    modifier = Modifier
+      .size(48.dp)
+      .scale(scale)
+      .clip(CircleShape)
+      .clickable(
+        role = Role.RadioButton,
+        onClick = onClick,
+      )
+      .semantics {
+        contentDescription = "${preset.name}${if (selected) "（已选中）" else ""}"
+      }
+      .testTag("seed_color_${preset.hex}"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Box(
+      modifier = Modifier
+        .size(42.dp)
+        .border(
+          width = if (selected) 2.5.dp else 1.dp,
+          color = if (selected) {
+            MaterialTheme.colorScheme.onSurface
+          } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+          },
+          shape = CircleShape,
+        )
+        .padding(4.dp)
+        .clip(CircleShape)
+        .background(preset.color),
+      contentAlignment = Alignment.Center,
+    ) {
+      if (selected) {
+        Icon(
+          imageVector = Icons.Filled.Check,
+          contentDescription = null,
+          tint = checkTint,
+          modifier = Modifier.size(18.dp),
+        )
       }
     }
   }

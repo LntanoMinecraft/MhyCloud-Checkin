@@ -1,10 +1,14 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -21,18 +26,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -40,6 +53,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -63,7 +78,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,8 +105,13 @@ fun HomeScreen(
   onResumeFromCapClick: (String) -> Unit,
   onToggleEnabledClick: (String) -> Unit,
   onDeleteAccountClick: (String) -> Unit,
+  onBuildExportHeaders: (String) -> String?,
+  onBuildExportCurl: (String) -> String?,
+  onBuildMaskedExportPreview: (String) -> String,
+  onShowMessage: (String) -> Unit,
 ) {
   var pendingDeleteAccount by remember { mutableStateOf<AccountWithState?>(null) }
+  var pendingExportAccount by remember { mutableStateOf<AccountWithState?>(null) }
 
   Box(
     modifier = Modifier
@@ -177,6 +199,7 @@ fun HomeScreen(
             onRepairCredential = { onRepairCredentialClick(item.profile.accountId) },
             onResumeFromCap = { onResumeFromCapClick(item.profile.accountId) },
             onToggleEnabled = { onToggleEnabledClick(item.profile.accountId) },
+            onExportTokenClick = { pendingExportAccount = item },
             onDeleteClick = { pendingDeleteAccount = item },
           )
         }
@@ -215,6 +238,26 @@ fun HomeScreen(
           Text("取消")
         }
       },
+    )
+  }
+
+  pendingExportAccount?.let { target ->
+    ExportTokenDialog(
+      account = target,
+      maskedPreview = remember(target.profile.accountId, target.profile.updatedAt) {
+        onBuildMaskedExportPreview(target.profile.accountId)
+      },
+      onCopyStandardHeaders = {
+        onBuildExportHeaders(target.profile.accountId)
+      },
+      onCopyCurlCommand = {
+        onBuildExportCurl(target.profile.accountId)
+      },
+      onCopied = {
+        onShowMessage("已复制到剪贴板")
+        pendingExportAccount = null
+      },
+      onDismiss = { pendingExportAccount = null },
     )
   }
 }
@@ -370,8 +413,10 @@ private fun AccountCard(
   onRepairCredential: () -> Unit,
   onResumeFromCap: () -> Unit,
   onToggleEnabled: () -> Unit,
+  onExportTokenClick: () -> Unit,
   onDeleteClick: () -> Unit,
 ) {
+  var menuExpanded by remember { mutableStateOf(false) }
   val statusColors = LocalStatusColors.current
   val profile = item.profile
   val state = item.state
@@ -626,21 +671,250 @@ private fun AccountCard(
             }
           }
 
-          IconButton(
-            onClick = onDeleteClick,
-            modifier = Modifier.minimumInteractiveComponentSize(),
-          ) {
-            Icon(
-              imageVector = Icons.Filled.DeleteOutline,
-              contentDescription = "删除账号",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.size(20.dp),
-            )
+          Box {
+            IconButton(
+              onClick = { menuExpanded = true },
+              modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .testTag("account_menu_btn_${profile.accountId}"),
+            ) {
+              Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = "更多操作",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+              )
+            }
+
+            DropdownMenu(
+              expanded = menuExpanded,
+              onDismissRequest = { menuExpanded = false },
+            ) {
+              DropdownMenuItem(
+                text = { Text("导出令牌") },
+                leadingIcon = {
+                  Icon(
+                    imageVector = Icons.Filled.IosShare,
+                    contentDescription = null,
+                  )
+                },
+                onClick = {
+                  menuExpanded = false
+                  onExportTokenClick()
+                },
+                modifier = Modifier.testTag("export_token_menu_${profile.accountId}"),
+              )
+              DropdownMenuItem(
+                text = {
+                  Text(
+                    text = "删除账号",
+                    color = MaterialTheme.colorScheme.error,
+                  )
+                },
+                leadingIcon = {
+                  Icon(
+                    imageVector = Icons.Filled.DeleteOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                  )
+                },
+                onClick = {
+                  menuExpanded = false
+                  onDeleteClick()
+                },
+                modifier = Modifier.testTag("delete_account_menu_${profile.accountId}"),
+              )
+            }
           }
         }
       }
     }
   }
+}
+
+@Composable
+private fun ExportTokenDialog(
+  account: AccountWithState,
+  maskedPreview: String,
+  onCopyStandardHeaders: () -> String?,
+  onCopyCurlCommand: () -> String?,
+  onCopied: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  val context = LocalContext.current
+  var previewExpanded by remember { mutableStateOf(false) }
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    icon = {
+      Icon(
+        imageVector = Icons.Filled.IosShare,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+      )
+    },
+    title = {
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+      ) {
+        Text(
+          text = "导出令牌",
+          style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+          text = "${account.profile.gameType.displayName} · ${account.profile.alias}",
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+    },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.errorContainer,
+          contentColor = MaterialTheme.colorScheme.onErrorContainer,
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+          ) {
+            Icon(
+              imageVector = Icons.Filled.WarningAmber,
+              contentDescription = null,
+              modifier = Modifier
+                .padding(top = 1.dp)
+                .size(18.dp),
+            )
+            Text(
+              text = "以下内容包含敏感登录凭证，仅用于迁移到您自己的其他设备或备份，请勿泄露给他人",
+              style = MaterialTheme.typography.bodySmall,
+            )
+          }
+        }
+
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceContainerHigh,
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { previewExpanded = !previewExpanded }
+            .testTag("export_preview_toggle"),
+        ) {
+          Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text(
+                text = if (previewExpanded) "收起脱敏请求头预览" else "展开脱敏请求头预览",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+              Icon(
+                imageVector = if (previewExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+              )
+            }
+
+            AnimatedVisibility(visible = previewExpanded) {
+              Box(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .heightIn(max = 150.dp)
+                  .verticalScroll(rememberScrollState()),
+              ) {
+                Text(
+                  text = maskedPreview.ifBlank { "暂无可预览内容" },
+                  style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+          }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Button(
+            onClick = {
+              val payload = onCopyStandardHeaders()
+              if (!payload.isNullOrBlank()) {
+                copyTextToClipboard(context, "cloud_checkin_headers", payload)
+                onCopied()
+              }
+            },
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+              .fillMaxWidth()
+              .minimumInteractiveComponentSize()
+              .testTag("copy_standard_headers_btn"),
+          ) {
+            Icon(
+              imageVector = Icons.Filled.ContentCopy,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "复制标准请求头（推荐，跨设备导入本软件）",
+              style = MaterialTheme.typography.labelLarge,
+            )
+          }
+
+          FilledTonalButton(
+            onClick = {
+              val curlPayload = onCopyCurlCommand()
+              if (!curlPayload.isNullOrBlank()) {
+                copyTextToClipboard(context, "cloud_checkin_curl", curlPayload)
+                onCopied()
+              }
+            },
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+              .fillMaxWidth()
+              .minimumInteractiveComponentSize()
+              .testTag("copy_curl_command_btn"),
+          ) {
+            Icon(
+              imageVector = Icons.Filled.Terminal,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "复制完整 cURL 命令",
+              style = MaterialTheme.typography.labelLarge,
+            )
+          }
+        }
+      }
+    },
+    confirmButton = {
+      TextButton(
+        onClick = onDismiss,
+        modifier = Modifier.minimumInteractiveComponentSize(),
+      ) {
+        Text("关闭")
+      }
+    },
+  )
+}
+
+private fun copyTextToClipboard(context: Context, label: String, text: String) {
+  val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+  clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
 @Composable

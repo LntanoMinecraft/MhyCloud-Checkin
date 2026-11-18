@@ -99,7 +99,8 @@ data class AppGlobalConfig(
   val autoBackupRenewal: Boolean = true,
   val maxFreeMinutes: Int = 600,
   val notificationsEnabled: Boolean = true,
-  val dynamicColorEnabled: Boolean = true,
+  val useDynamicColor: Boolean = true,
+  val themeSeedColorHex: String? = null,
   val themePreference: ThemePreference = ThemePreference.SYSTEM,
   val nextScheduledEpochMillis: Long = 0L,
 )

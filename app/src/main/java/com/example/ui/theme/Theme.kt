@@ -81,7 +81,8 @@ val ExpressiveShapes = Shapes(
 @Composable
 fun CloudCheckinTheme(
   themePreference: ThemePreference = ThemePreference.SYSTEM,
-  dynamicColor: Boolean = true,
+  useDynamicColor: Boolean = true,
+  themeSeedColorHex: String? = null,
   content: @Composable () -> Unit,
 ) {
   val systemDark = isSystemInDarkTheme()
@@ -91,11 +92,13 @@ fun CloudCheckinTheme(
     ThemePreference.DARK -> true
   }
 
+  val seedColor = parseThemeSeedColorOrNull(themeSeedColorHex)
   val colorScheme = when {
-    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+    useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       val context = LocalContext.current
       if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
+    seedColor != null -> generateSeededColorScheme(seedColor = seedColor, isDark = isDark)
     isDark -> ExpressiveDarkColorScheme
     else -> ExpressiveLightColorScheme
   }

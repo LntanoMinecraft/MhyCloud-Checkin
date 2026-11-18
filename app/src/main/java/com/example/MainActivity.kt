@@ -56,7 +56,8 @@ class MainActivity : ComponentActivity() {
 
       CloudCheckinTheme(
         themePreference = config.themePreference,
-        dynamicColor = config.dynamicColorEnabled,
+        useDynamicColor = config.useDynamicColor,
+        themeSeedColorHex = config.themeSeedColorHex,
       ) {
         CloudCheckinRootContent(viewModel = viewModel)
       }
@@ -138,6 +139,10 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
             onResumeFromCapClick = { id -> viewModel.resumeAccountFromCap(id) },
             onToggleEnabledClick = { id -> viewModel.toggleAccountEnabled(id) },
             onDeleteAccountClick = { id -> viewModel.deleteAccount(id) },
+            onBuildExportHeaders = { id -> viewModel.buildStandardHeadersExport(id) },
+            onBuildExportCurl = { id -> viewModel.buildCurlExport(id) },
+            onBuildMaskedExportPreview = { id -> viewModel.buildMaskedExportPreview(id) },
+            onShowMessage = { msg -> viewModel.showMessage(msg) },
           )
         }
 
@@ -164,6 +169,7 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
             onToggleAutoBackupRenewal = { enabled -> viewModel.toggleAutoBackupRenewal(enabled) },
             onToggleNotifications = { enabled -> viewModel.toggleNotifications(enabled) },
             onToggleDynamicColor = { enabled -> viewModel.toggleDynamicColor(enabled) },
+            onSelectThemeSeedColor = { hex -> viewModel.selectThemeSeedColor(hex) },
             onUpdateThemePreference = { pref -> viewModel.updateThemePreference(pref) },
             onOpenImportHelp = { navController.navigate(ImportHelpRoute) },
           )

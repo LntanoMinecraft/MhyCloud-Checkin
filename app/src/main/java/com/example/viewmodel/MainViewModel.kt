@@ -19,6 +19,7 @@ import com.example.data.CheckinLogEntry
 import com.example.data.CredentialSource
 import com.example.data.GameType
 import com.example.data.PermissionMode
+import com.example.data.SecuritySanitizer
 import com.example.data.ThemePreference
 import com.example.notification.NotificationHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 data class ImportSheetTarget(
   val isVisible: Boolean = false,
@@ -48,6 +50,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private val storage = app.container.storageRepository
   private val orchestrator = app.container.orchestrator
   private val scheduleManager = app.container.scheduleManager
+  private val exportJson = Json { ignoreUnknownKeys = true }
 
   val accounts: StateFlow<List<AccountWithState>> = storage.accounts
   val config: StateFlow<AppGlobalConfig> = storage.config
@@ -342,11 +345,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   fun toggleDynamicColor(enabled: Boolean) {
-    storage.updateConfig { it.copy(dynamicColorEnabled = enabled) }
+    storage.updateConfig { current ->
+      if (!enabled && current.themeSeedColorHex.isNullOrBlank()) {
+        current.copy(useDynamicColor = false, themeSeedColorHex = "#6750A4")
+      } else {
+        current.copy(useDynamicColor = enabled)
+      }
+    }
+  }
+
+  fun selectThemeSeedColor(hex: String) {
+    storage.updateConfig {
+      it.copy(
+        useDynamicColor = false,
+        themeSeedColorHex = hex,
+      )
+    }
   }
 
   fun updateThemePreference(preference: ThemePreference) {
     storage.updateConfig { it.copy(themePreference = preference) }
+  }
+
+  private fun collectExportHeaders(accountId: String): Pair<AccountProfile, Map<String, String>>? {
+    val item = storage.getAccount(accountId) ?: return null
+    val profile = item.profile
+    val deviceHeaders = runCatching {
+      exportJson.decodeFromString<Map<String, String>>(profile.deviceHeadersJson)
+    }.getOrDefault(emptyMap())
+
+    val merged = linkedMapOf<String, String>()
+    merged["x-rpc-combo_token"] = profile.comboToken
+    deviceHeaders.forEach { (key, value) ->
+      if (!key.equals("x-rpc-combo_token", ignoreCase = true) && value.isNotBlank()) {
+        merged[key] = value
+      }
+    }
+    return profile to merged
+  }
+
+  fun buildStandardHeadersExport(accountId: String): String? {
+    val (_, headers) = collectExportHeaders(accountId) ?: return null
+    return headers.entries.joinToString("\n") { (key, value) -> "$key: $value" }
+  }
+
+  fun buildCurlExport(accountId: String): String? {
+    val (profile, headers) = collectExportHeaders(accountId) ?: return null
+    return buildString {
+      append("curl -X GET '")
+      append(profile.gameType.walletEndpoint)
+      append("' \\\n")
+      headers.entries.forEachIndexed { index, (key, value) ->
+        val quote = if (value.contains('\'')) "\"" else "'"
+        val safeValue = if (quote == "\"") value.replace("\"", "\\\"") else value
+        append("  -H ")
+        append(quote)
+        append(key)
+        append(": ")
+        append(safeValue)
+        append(quote)
+        if (index < headers.size - 1) append(" \\\n")
+      }
+    }
+  }
+
+  fun buildMaskedExportPreview(accountId: String): String {
+    val raw = buildStandardHeadersExport(accountId).orEmpty()
+    return SecuritySanitizer.sanitizeText(raw)
   }
 
   fun clearLogs() {

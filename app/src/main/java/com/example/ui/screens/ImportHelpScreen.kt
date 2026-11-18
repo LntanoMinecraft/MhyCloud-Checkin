@@ -360,10 +360,14 @@ private fun ZzzNoticeHighlightCard(
 
 @Composable
 private fun FriendlyTipsCard() {
+  val containerColor = MaterialTheme.colorScheme.secondaryContainer
+  val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+
   Card(
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
+      containerColor = containerColor,
+      contentColor = contentColor,
     ),
     modifier = Modifier.fillMaxWidth(),
   ) {
@@ -378,13 +382,13 @@ private fun FriendlyTipsCard() {
         Icon(
           imageVector = Icons.Filled.TipsAndUpdates,
           contentDescription = null,
-          tint = MaterialTheme.colorScheme.onTertiaryContainer,
+          tint = contentColor,
           modifier = Modifier.size(20.dp),
         )
         Text(
           text = "贴心提醒",
           style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.onTertiaryContainer,
+          color = contentColor,
         )
       }
 
@@ -409,6 +413,8 @@ private fun FriendlyTipItem(
   title: String,
   body: String,
 ) {
+  val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+
   Row(
     horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalAlignment = Alignment.Top,
@@ -416,7 +422,7 @@ private fun FriendlyTipItem(
     Icon(
       imageVector = Icons.Filled.CheckCircleOutline,
       contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
+      tint = contentColor,
       modifier = Modifier
         .padding(top = 2.dp)
         .size(18.dp),
@@ -425,12 +431,12 @@ private fun FriendlyTipItem(
       Text(
         text = title,
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = contentColor,
       )
       Text(
         text = body,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = contentColor.copy(alpha = 0.85f),
       )
     }
   }
