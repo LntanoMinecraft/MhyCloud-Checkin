@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,21 +98,22 @@ class EncryptedStorageRepository(context: Context) {
     _accounts.value = items
   }
 
-  fun currentBeijingDate(): String {
-    return LocalDate.now(BEIJING_ZONE).format(DateTimeFormatter.ISO_LOCAL_DATE)
-  }
+  fun getGameLogicalDate(): String = Companion.getGameLogicalDate()
+
+  fun currentBeijingDate(): String = getGameLogicalDate()
 
   /**
-   * Cross-day reset evaluated strictly in Beijing Time (Asia/Shanghai).
-   * Only DONE_TODAY accounts reset to READY; PAUSED_CAP_REACHED and NEED_REAUTH never auto-reset.
+   * Cross-day reset evaluated strictly by game logical day (04:00 Beijing Time, UTC+8).
+   * Only DONE_TODAY accounts from a previous logical day reset to READY;
+   * PAUSED_CAP_REACHED and NEED_REAUTH never auto-reset.
    */
   fun performMidnightResetIfNeeded(): Boolean {
-    val today = currentBeijingDate()
+    val logicalToday = getGameLogicalDate()
     var changed = false
     synchronized(lock) {
       val updated = _accounts.value.map { item ->
         val state = item.state
-        if (state.status == AccountStatus.DONE_TODAY && state.lastCheckinDate != today) {
+        if (state.status == AccountStatus.DONE_TODAY && state.lastCheckinDate != logicalToday) {
           changed = true
           item.copy(
             state = state.copy(
@@ -209,10 +210,10 @@ class EncryptedStorageRepository(context: Context) {
 
   fun resumeAccountFromCap(accountId: String) {
     synchronized(lock) {
-      val today = currentBeijingDate()
+      val logicalToday = getGameLogicalDate()
       val updated = _accounts.value.map { item ->
         if (item.profile.accountId == accountId) {
-          val nextStatus = if (item.state.lastCheckinDate == today) {
+          val nextStatus = if (item.state.lastCheckinDate == logicalToday) {
             AccountStatus.DONE_TODAY
           } else {
             AccountStatus.READY
@@ -315,5 +316,18 @@ class EncryptedStorageRepository(context: Context) {
     private const val KEY_LOGS = "logs_json"
     const val MAX_LOG_COUNT = 200
     val BEIJING_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
+    const val GAME_DAY_RESET_HOUR = 4
+
+    /**
+     * Game logical date based on Beijing Time (UTC+8) with 04:00 daily reset boundary.
+     * Example: 2026-11-19 03:59 CST -> "2026-11-18"; 2026-11-19 04:00 CST -> "2026-11-19".
+     */
+    fun getGameLogicalDate(now: ZonedDateTime = ZonedDateTime.now(BEIJING_ZONE)): String {
+      return now
+        .withZoneSameInstant(BEIJING_ZONE)
+        .minusHours(GAME_DAY_RESET_HOUR.toLong())
+        .toLocalDate()
+        .format(DateTimeFormatter.ISO_LOCAL_DATE)
+    }
   }
 }

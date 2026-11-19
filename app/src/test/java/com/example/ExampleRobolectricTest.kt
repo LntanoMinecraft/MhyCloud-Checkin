@@ -2,10 +2,16 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.core.CheckinOrchestrator
+import com.example.core.CheckinVerdictType
 import com.example.core.ClipboardCredentialParser
 import com.example.core.RootHelper
 import com.example.core.WebViewCredentialManager
+import com.example.data.AccountStatus
+import com.example.data.EncryptedStorageRepository
 import com.example.data.SecuritySanitizer
+import com.example.scheduler.ScheduleManager
+import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -84,5 +90,116 @@ class ExampleRobolectricTest {
     assertNotNull(parsed)
     assertEquals("4", parsed!!["sp_key_app_id"])
     assertEquals("123456789", parsed["sp_key_open_id"])
+  }
+
+  @Test
+  fun `game logical date resets at 04_00 Beijing time`() {
+    val zone = EncryptedStorageRepository.BEIJING_ZONE
+    val beforeReset = ZonedDateTime.of(2026, 11, 19, 3, 59, 59, 0, zone)
+    val atReset = ZonedDateTime.of(2026, 11, 19, 4, 0, 0, 0, zone)
+    val midnight = ZonedDateTime.of(2026, 11, 19, 0, 0, 0, 0, zone)
+
+    assertEquals("2026-11-18", EncryptedStorageRepository.getGameLogicalDate(midnight))
+    assertEquals("2026-11-18", EncryptedStorageRepository.getGameLogicalDate(beforeReset))
+    assertEquals("2026-11-19", EncryptedStorageRepository.getGameLogicalDate(atReset))
+  }
+
+  @Test
+  fun `periodic fallback respects 04_00 boundary and user schedule time`() {
+    val zone = EncryptedStorageRepository.BEIJING_ZONE
+    assertFalse(
+      ScheduleManager.isPeriodicFallbackAllowedNow(
+        scheduleHour = 7,
+        scheduleMinute = 0,
+        now = ZonedDateTime.of(2026, 11, 19, 2, 30, 0, 0, zone),
+      ),
+    )
+    assertFalse(
+      ScheduleManager.isPeriodicFallbackAllowedNow(
+        scheduleHour = 7,
+        scheduleMinute = 0,
+        now = ZonedDateTime.of(2026, 11, 19, 6, 59, 0, 0, zone),
+      ),
+    )
+    assertTrue(
+      ScheduleManager.isPeriodicFallbackAllowedNow(
+        scheduleHour = 7,
+        scheduleMinute = 0,
+        now = ZonedDateTime.of(2026, 11, 19, 7, 0, 0, 0, zone),
+      ),
+    )
+    // Even if user configured 02:00, never run before 04:00 game day reset
+    assertFalse(
+      ScheduleManager.isPeriodicFallbackAllowedNow(
+        scheduleHour = 2,
+        scheduleMinute = 0,
+        now = ZonedDateTime.of(2026, 11, 19, 3, 30, 0, 0, zone),
+      ),
+    )
+  }
+
+  @Test
+  fun `checkin verdict enforces duration increase, cap pause, initial sync, and READY on zero delta`() {
+    // 1. No increase after 3s recheck on existing account below cap -> MUST remain READY
+    val noIncrease = CheckinOrchestrator.evaluateCheckinVerdict(
+      hasBaselineRecord = true,
+      oldFreeMinutes = 120,
+      firstFreeMinutes = 120,
+      firstSendFreeMinutes = 0,
+      finalFreeMinutes = 120,
+      finalSendFreeMinutes = 0,
+      didRecheck = true,
+      maxFreeMinutes = 600,
+    )
+    assertEquals(CheckinVerdictType.NO_INCREASE_KEEP_READY, noIncrease.type)
+    assertEquals(AccountStatus.READY, noIncrease.nextStatus)
+    assertFalse(noIncrease.shouldMarkLogicalDate)
+
+    // 2. Async grant increased on 3s recheck even if user spent minutes since yesterday -> DONE_TODAY (+15)
+    val asyncIncreased = CheckinOrchestrator.evaluateCheckinVerdict(
+      hasBaselineRecord = true,
+      oldFreeMinutes = 120,
+      firstFreeMinutes = 60,
+      firstSendFreeMinutes = 0,
+      finalFreeMinutes = 75,
+      finalSendFreeMinutes = 0,
+      didRecheck = true,
+      maxFreeMinutes = 600,
+    )
+    assertEquals(CheckinVerdictType.SUCCESS_DURATION_INCREASED, asyncIncreased.type)
+    assertEquals(AccountStatus.DONE_TODAY, asyncIncreased.nextStatus)
+    assertEquals(15, asyncIncreased.computedDelta)
+    assertTrue(asyncIncreased.shouldMarkLogicalDate)
+
+    // 3. Reached free minute cap -> PAUSED_CAP_REACHED
+    val capReached = CheckinOrchestrator.evaluateCheckinVerdict(
+      hasBaselineRecord = true,
+      oldFreeMinutes = 600,
+      firstFreeMinutes = 600,
+      firstSendFreeMinutes = 0,
+      finalFreeMinutes = 600,
+      finalSendFreeMinutes = 0,
+      didRecheck = false,
+      maxFreeMinutes = 600,
+    )
+    assertEquals(CheckinVerdictType.SUCCESS_CAP_REACHED, capReached.type)
+    assertEquals(AccountStatus.PAUSED_CAP_REACHED, capReached.nextStatus)
+    assertTrue(capReached.reachedCap)
+
+    // 4. First-time baseline sync (never synced before) -> DONE_TODAY
+    val initialBaseline = CheckinOrchestrator.evaluateCheckinVerdict(
+      hasBaselineRecord = false,
+      oldFreeMinutes = 0,
+      firstFreeMinutes = 180,
+      firstSendFreeMinutes = 0,
+      finalFreeMinutes = 180,
+      finalSendFreeMinutes = 0,
+      didRecheck = true,
+      maxFreeMinutes = 600,
+    )
+    assertEquals(CheckinVerdictType.SUCCESS_INITIAL_BASELINE, initialBaseline.type)
+    assertEquals(AccountStatus.DONE_TODAY, initialBaseline.nextStatus)
+    assertEquals(0, initialBaseline.computedDelta)
+    assertTrue(initialBaseline.shouldMarkLogicalDate)
   }
 }

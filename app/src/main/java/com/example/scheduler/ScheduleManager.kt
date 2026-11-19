@@ -17,6 +17,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.data.EncryptedStorageRepository
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -95,12 +96,17 @@ class ScheduleManager(
     val periodicRequest = PeriodicWorkRequestBuilder<CheckinWorker>(12, TimeUnit.HOURS)
       .setConstraints(constraints)
       .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
-      .setInputData(workDataOf(CheckinWorker.KEY_IS_SCHEDULED to true))
+      .setInputData(
+        workDataOf(
+          CheckinWorker.KEY_IS_SCHEDULED to true,
+          CheckinWorker.KEY_IS_PERIODIC_FALLBACK to true,
+        ),
+      )
       .build()
 
     WorkManager.getInstance(context).enqueueUniquePeriodicWork(
       PERIODIC_WORK_NAME,
-      ExistingPeriodicWorkPolicy.KEEP,
+      ExistingPeriodicWorkPolicy.UPDATE,
       periodicRequest,
     )
   }
@@ -114,7 +120,12 @@ class ScheduleManager(
       .setConstraints(constraints)
       .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
       .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-      .setInputData(workDataOf(CheckinWorker.KEY_IS_SCHEDULED to isScheduledRun))
+      .setInputData(
+        workDataOf(
+          CheckinWorker.KEY_IS_SCHEDULED to isScheduledRun,
+          CheckinWorker.KEY_IS_PERIODIC_FALLBACK to false,
+        ),
+      )
       .build()
 
     WorkManager.getInstance(context).enqueueUniqueWork(
@@ -147,6 +158,20 @@ class ScheduleManager(
     private const val ALARM_REQUEST_CODE = 3101
     private const val ONE_TIME_WORK_NAME = "cloud_checkin_expedited_work"
     private const val PERIODIC_WORK_NAME = "cloud_checkin_periodic_fallback"
+
+    fun isPeriodicFallbackAllowedNow(
+      scheduleHour: Int,
+      scheduleMinute: Int,
+      now: ZonedDateTime = ZonedDateTime.now(EncryptedStorageRepository.BEIJING_ZONE),
+    ): Boolean {
+      val beijingTime = now.withZoneSameInstant(EncryptedStorageRepository.BEIJING_ZONE).toLocalTime()
+      val resetBoundary = LocalTime.of(EncryptedStorageRepository.GAME_DAY_RESET_HOUR, 0)
+      if (beijingTime.isBefore(resetBoundary)) {
+        return false
+      }
+      val userScheduleTime = LocalTime.of(scheduleHour.coerceIn(0, 23), scheduleMinute.coerceIn(0, 59))
+      return !beijingTime.isBefore(userScheduleTime)
+    }
 
     fun formatNextScheduleDisplay(epochMillis: Long): String {
       if (epochMillis <= 0L) return "未预约"

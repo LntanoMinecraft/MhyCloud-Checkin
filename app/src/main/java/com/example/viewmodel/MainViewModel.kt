@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.CloudCheckinApp
 import com.example.core.CapturedWebCredentials
+import com.example.core.CheckinOrchestrator
 import com.example.core.ClipboardCredentialParser
 import com.example.core.ClipboardParseResult
 import com.example.core.RootHelper
@@ -123,12 +124,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
   fun runCheckinAll() {
     if (_isBatchRunning.value) return
-    val enabledCount = accounts.value.count {
+    storage.performMidnightResetIfNeeded()
+
+    val enabledAccounts = accounts.value.filter {
       it.profile.isEnabled &&
         it.state.status != AccountStatus.PAUSED_CAP_REACHED &&
         it.state.status != AccountStatus.NEED_REAUTH
     }
-    if (enabledCount == 0) {
+    if (enabledAccounts.isEmpty()) {
       _snackbarEvents.tryEmit("暂无可签到的已启用账号，请先添加或恢复账号")
       return
     }
@@ -139,7 +142,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val okCount = result.outcomes.count {
           it.status == AccountStatus.DONE_TODAY || it.status == AccountStatus.PAUSED_CAP_REACHED
         }
-        _snackbarEvents.tryEmit("执行完成：$okCount/${result.outcomes.size} 个账号同步成功")
+        val skippedDone = result.skippedAlreadyDoneCount
+        val totalExecuted = result.outcomes.size
+        val allNoIncrease = totalExecuted > 0 && result.outcomes.all {
+          it.status == AccountStatus.READY && it.message == CheckinOrchestrator.NO_INCREASE_MESSAGE
+        }
+
+        val summaryMessage = when {
+          totalExecuted == 0 && skippedDone > 0 ->
+            "今日已完成签到（已跳过 $skippedDone 个已完成账号）"
+          skippedDone > 0 && okCount == totalExecuted ->
+            "执行完成：$okCount/$totalExecuted 个账号签到成功，另有 $skippedDone 个今日已完成签到"
+          skippedDone > 0 && allNoIncrease ->
+            "未检测到时长增加（$totalExecuted 个保持待签到），另有 $skippedDone 个今日已完成签到"
+          skippedDone > 0 ->
+            "执行完成：$okCount/$totalExecuted 个账号签到成功，另有 $skippedDone 个今日已完成签到"
+          okCount == totalExecuted ->
+            "执行完成：$okCount/$totalExecuted 个账号签到成功"
+          allNoIncrease ->
+            CheckinOrchestrator.NO_INCREASE_MESSAGE
+          else ->
+            "执行完成：$okCount/$totalExecuted 个账号签到成功，${totalExecuted - okCount} 个待重试或需处理"
+        }
+        _snackbarEvents.tryEmit(summaryMessage)
       } finally {
         _isBatchRunning.value = false
       }
