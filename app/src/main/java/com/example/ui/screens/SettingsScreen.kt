@@ -20,9 +20,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -87,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.example.BuildConfig
 import com.example.core.RootProbeResult
 import com.example.data.AppGlobalConfig
 import com.example.data.PermissionMode
@@ -115,9 +120,11 @@ fun SettingsScreen(
   onSelectThemeSeedColor: (String) -> Unit,
   onUpdateThemePreference: (ThemePreference) -> Unit,
   onOpenImportHelp: () -> Unit,
+  onOpenAbout: () -> Unit,
 ) {
   val context = LocalContext.current
   var showTimePicker by remember { mutableStateOf(false) }
+  val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
   LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
     onRefreshPermissions()
@@ -139,7 +146,12 @@ fun SettingsScreen(
       modifier = Modifier
         .fillMaxSize()
         .widthIn(max = 640.dp),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+      contentPadding = PaddingValues(
+        start = 16.dp,
+        end = 16.dp,
+        top = 12.dp,
+        bottom = navBarBottom + 112.dp,
+      ),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       item(key = "settings_header") {
@@ -222,6 +234,11 @@ fun SettingsScreen(
             }
           },
         )
+      }
+
+      // 6. About Entry Card
+      item(key = "about_entry_card") {
+        AboutEntryCard(onClick = onOpenAbout)
       }
     }
   }
@@ -884,6 +901,70 @@ private fun HelpGuideEntryCard(onClick: () -> Unit) {
         contentDescription = "查看教程",
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+    }
+  }
+}
+
+@Composable
+private fun AboutEntryCard(onClick: () -> Unit) {
+  Card(
+    shape = RoundedCornerShape(24.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(24.dp))
+      .clickable(onClick = onClick)
+      .testTag("settings_open_about_card"),
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .minimumInteractiveComponentSize()
+        .padding(18.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Row(
+        modifier = Modifier.weight(1f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        Surface(
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.primaryContainer,
+          modifier = Modifier.size(40.dp),
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = Icons.Outlined.Info,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onPrimaryContainer,
+              modifier = Modifier.size(20.dp),
+            )
+          }
+        }
+        Text(
+          text = "关于云签助手",
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+      }
+
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        Text(
+          text = "v${BuildConfig.VERSION_NAME}",
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+          contentDescription = "进入关于页面",
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
     }
   }
 }

@@ -28,12 +28,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.notification.NotificationHelper
+import com.example.ui.navigation.AboutRoute
 import com.example.ui.navigation.AppTab
 import com.example.ui.navigation.FloatingNavigationChrome
 import com.example.ui.navigation.HomeRoute
 import com.example.ui.navigation.ImportHelpRoute
 import com.example.ui.navigation.LogsRoute
 import com.example.ui.navigation.SettingsRoute
+import com.example.ui.screens.AboutScreen
 import com.example.ui.screens.CredentialImportSheet
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ImportHelpScreen
@@ -98,7 +100,8 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
   val backStackEntry by navController.currentBackStackEntryAsState()
   val currentDestination = backStackEntry?.destination
 
-  val isHelpScreen = currentDestination?.hasRoute<ImportHelpRoute>() == true
+  val isSecondaryScreen = currentDestination?.hasRoute<ImportHelpRoute>() == true ||
+    currentDestination?.hasRoute<AboutRoute>() == true
   val selectedTab = when {
     currentDestination?.hasRoute<LogsRoute>() == true -> AppTab.LOGS
     currentDestination?.hasRoute<SettingsRoute>() == true -> AppTab.SETTINGS
@@ -172,6 +175,7 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
             onSelectThemeSeedColor = { hex -> viewModel.selectThemeSeedColor(hex) },
             onUpdateThemePreference = { pref -> viewModel.updateThemePreference(pref) },
             onOpenImportHelp = { navController.navigate(ImportHelpRoute) },
+            onOpenAbout = { navController.navigate(AboutRoute) },
           )
         }
 
@@ -180,9 +184,16 @@ private fun CloudCheckinRootContent(viewModel: MainViewModel) {
             onBackClick = { navController.popBackStack() },
           )
         }
+
+        composable<AboutRoute> {
+          AboutScreen(
+            onBackClick = { navController.popBackStack() },
+            onOpenLinkError = { msg -> viewModel.showMessage(msg) },
+          )
+        }
       }
 
-      if (!isHelpScreen) {
+      if (!isSecondaryScreen) {
         FloatingNavigationChrome(
           selectedTab = selectedTab,
           onSelectTab = { tab ->

@@ -20,11 +20,11 @@ android {
     val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
     val ciRefName = System.getenv("GITHUB_REF_NAME")
 
-    versionCode = if (ciRunNumber != null) 5 + ciRunNumber else 6
+    versionCode = if (ciRunNumber != null) 6 + ciRunNumber else 7
     versionName = when {
       ciRefName != null && ciRefName.startsWith("v") -> ciRefName.removePrefix("v")
-      ciRunNumber != null -> "5.0-dev.$ciRunNumber"
-      else -> "5.0"
+      ciRunNumber != null -> "7.0-dev.$ciRunNumber"
+      else -> "7.0"
     }
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -14,6 +14,9 @@ object SettingsRoute
 @Serializable
 object ImportHelpRoute
 
+@Serializable
+object AboutRoute
+
 enum class AppTab(
   val label: String,
   val testTag: String,

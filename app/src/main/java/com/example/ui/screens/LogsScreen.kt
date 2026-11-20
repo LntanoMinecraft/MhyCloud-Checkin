@@ -8,14 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -74,6 +74,7 @@ fun LogsScreen(
   var filter by remember { mutableStateOf(LogFilter.ALL) }
   var expandedLogId by remember { mutableStateOf<String?>(null) }
   val clipboardManager = LocalClipboardManager.current
+  val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
   val filteredLogs = remember(logs, filter) {
     when (filter) {
@@ -92,7 +93,12 @@ fun LogsScreen(
       modifier = Modifier
         .fillMaxSize()
         .widthIn(max = 640.dp),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+      contentPadding = PaddingValues(
+        start = 16.dp,
+        end = 16.dp,
+        top = 12.dp,
+        bottom = navBarBottom + 112.dp,
+      ),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       item(key = "logs_header") {
@@ -239,19 +245,20 @@ private fun CollapsibleLogRowCard(
     else -> statusColors.onSuccessContainer
   }
 
+  val badgeTitle = remember(entry.resultTitle) {
+    compactLogBadgeTitle(entry.resultTitle)
+  }
+
   Card(
     shape = RoundedCornerShape(20.dp),
     colors = CardDefaults.cardColors(
       containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ),
-    border = BorderStroke(
-      1.dp,
-      if (entry.isError) {
-        MaterialTheme.colorScheme.error.copy(alpha = 0.45f)
-      } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-      },
-    ),
+    border = if (entry.isError) {
+      BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f))
+    } else {
+      null
+    },
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(20.dp))
@@ -272,6 +279,7 @@ private fun CollapsibleLogRowCard(
           text = timeStr,
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
+          softWrap = false,
         )
 
         Surface(
@@ -281,31 +289,36 @@ private fun CollapsibleLogRowCard(
           Text(
             text = entry.gameType.shortTag,
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
           )
         }
 
-        Surface(
-          shape = CircleShape,
-          color = badgeBg,
-          modifier = Modifier.weight(1f, fill = false),
+        Box(
+          modifier = Modifier.weight(1f),
+          contentAlignment = Alignment.CenterStart,
         ) {
-          Text(
-            text = entry.resultTitle,
-            style = MaterialTheme.typography.labelMedium,
-            color = badgeFg,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-          )
+          Surface(
+            shape = CircleShape,
+            color = badgeBg,
+          ) {
+            Text(
+              text = badgeTitle,
+              style = MaterialTheme.typography.labelMedium,
+              color = badgeFg,
+              maxLines = 1,
+              softWrap = false,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+          }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         Text(
           text = if (entry.deltaMinutes > 0) "+${entry.deltaMinutes}m" else "±0m",
           style = MaterialTheme.typography.labelLarge,
           color = if (entry.deltaMinutes > 0) statusColors.successAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+          softWrap = false,
         )
 
         Icon(
@@ -365,5 +378,17 @@ private fun MetaTagChip(text: String) {
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
     )
+  }
+}
+
+private fun compactLogBadgeTitle(rawTitle: String): String {
+  return when {
+    rawTitle.contains("今日已完成") || rawTitle.contains("首次基准同步") -> "已完成"
+    rawTitle.contains("签到成功") -> "签到成功"
+    rawTitle.contains("已达上限") -> "已达上限"
+    rawTitle.contains("凭证失效") -> "凭证失效"
+    rawTitle.contains("未检测到时长增加") -> "未增时长"
+    rawTitle.contains("网络异常") -> "网络异常"
+    else -> rawTitle
   }
 }

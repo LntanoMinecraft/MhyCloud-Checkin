@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -88,6 +91,7 @@ import com.example.data.AccountStatus
 import com.example.data.AccountWithState
 import com.example.data.AppGlobalConfig
 import com.example.data.CredentialSource
+import com.example.data.EncryptedStorageRepository
 import com.example.data.GameType
 import com.example.data.PermissionMode
 import com.example.scheduler.ScheduleManager
@@ -112,6 +116,7 @@ fun HomeScreen(
 ) {
   var pendingDeleteAccount by remember { mutableStateOf<AccountWithState?>(null) }
   var pendingExportAccount by remember { mutableStateOf<AccountWithState?>(null) }
+  val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
   Box(
     modifier = Modifier
@@ -123,7 +128,12 @@ fun HomeScreen(
       modifier = Modifier
         .fillMaxSize()
         .widthIn(max = 640.dp),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 164.dp),
+      contentPadding = PaddingValues(
+        start = 16.dp,
+        end = 16.dp,
+        top = 12.dp,
+        bottom = navBarBottom + 164.dp,
+      ),
       verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
       item(key = "header_title") {
@@ -274,6 +284,9 @@ private fun OverviewHeroCard(
   val allPausedCap = accounts.isNotEmpty() && accounts.all {
     it.state.status == AccountStatus.PAUSED_CAP_REACHED
   }
+  val todayShortDate = remember(accounts, config.nextScheduledEpochMillis) {
+    EncryptedStorageRepository.getGameLogicalDate().takeLast(5)
+  }
 
   val progressTarget = if (total > 0) completedToday.toFloat() / total.toFloat() else 0f
   val animatedProgress by animateFloatAsState(
@@ -318,9 +331,9 @@ private fun OverviewHeroCard(
         ) {
           Column {
             Text(
-              text = "今日签到",
+              text = "今日签到 · $todayShortDate",
               style = MaterialTheme.typography.labelLarge,
-              color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+              color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f),
             )
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.Bottom) {
@@ -393,7 +406,7 @@ private fun OverviewHeroCard(
               accounts.isEmpty() -> "待添加账号"
               allPausedCap -> "已全部达上限暂停，消耗时长后可恢复"
               config.nextScheduledEpochMillis > 0L ->
-                "下次 ${ScheduleManager.formatNextScheduleDisplay(config.nextScheduledEpochMillis)}"
+                "下次签到 ${ScheduleManager.formatNextScheduleDisplay(config.nextScheduledEpochMillis)}"
               else -> "调度已暂停"
             },
             style = MaterialTheme.typography.labelLarge,
@@ -447,6 +460,22 @@ private fun AccountCard(
     CredentialSource.CLIPBOARD -> "剪贴板"
   }
 
+  val cleanAlias = profile.alias.trim()
+  val isDefaultAlias = cleanAlias.isBlank() ||
+    cleanAlias == profile.gameType.displayName ||
+    cleanAlias == "${profile.gameType.displayName} 账号" ||
+    (cleanAlias.startsWith("${profile.gameType.displayName} (") && cleanAlias.endsWith(")"))
+  val resolvedMaskedUid = profile.maskedUid.ifBlank {
+    Regex("""\(([^)]+)\)""").find(cleanAlias)?.groupValues?.getOrNull(1).orEmpty()
+  }
+  val displayTitle = if (isDefaultAlias) profile.gameType.displayName else cleanAlias
+  val displaySubtitle = when {
+    resolvedMaskedUid.isNotBlank() && isDefaultAlias -> resolvedMaskedUid
+    resolvedMaskedUid.isNotBlank() -> "${profile.gameType.displayName} · $resolvedMaskedUid"
+    !isDefaultAlias -> profile.gameType.displayName
+    else -> ""
+  }
+
   Card(
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(
@@ -455,7 +484,7 @@ private fun AccountCard(
     border = if (isNeedReauth) {
       BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
     } else {
-      BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+      null
     },
     modifier = Modifier
       .fillMaxWidth()
@@ -465,7 +494,7 @@ private fun AccountCard(
       modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      // Top row: Geometric Game Emblem, Alias, Concise Status Pill
+      // Top row: Geometric Game Emblem, Game Title / Masked UID, Concise Status Pill
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -480,25 +509,21 @@ private fun AccountCard(
 
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = profile.alias,
+              text = displayTitle,
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.onSurface,
               maxLines = 1,
               overflow = TextOverflow.Ellipsis,
             )
-            Text(
-              text = buildString {
-                append(profile.gameType.displayName)
-                if (profile.maskedUid.isNotBlank()) {
-                  append(" · ")
-                  append(profile.maskedUid)
-                }
-              },
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
+            if (displaySubtitle.isNotBlank()) {
+              Text(
+                text = displaySubtitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
           }
         }
 
