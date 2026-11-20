@@ -66,7 +66,7 @@
 
 ## 致谢与开源协议
 
-* **开发致谢**：本项目由 **Google AI Studio** 中的 **Gemini 4 Hydrogen** 编写实现。
+* **开发致谢**：本项目由 **Google AI Studio** 中的 **Gemini 4 Hydrogen** 和 **Gemini 4 Neon** 编写实现。
 * **开源协议**：本项目基于 [MIT License](https://github.com/LntanoMinecraft/MhyCloud-Checkin/blob/main/LICENSE) 开源。
 
 ---
